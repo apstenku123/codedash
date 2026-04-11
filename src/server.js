@@ -2,7 +2,7 @@
 const http = require('http');
 const https = require('https');
 const { URL } = require('url');
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 const { loadSessions, loadSessionsAsync, getWarmingStatus, getSqliteBackfillStatus, createCostAggregator, computeSessionCostForAnalytics, buildOpencodeCostCache, loadSessionDetail, deleteSession, getGitCommits, exportSessionMarkdown, getSessionPreview, searchFullText, getActiveSessions, getSessionReplay, getCostAnalytics, computeSessionCost, getProjectGitInfo, getLeaderboardStats } = require('./data');
 const sqliteIndex = require('./sqlite-index');
 const { detectTerminals, openInTerminal, focusTerminalByPid } = require('./terminals');
@@ -954,26 +954,30 @@ function startServer(host, port, openBrowser = true) {
     }
   });
 
+  // Separate bind address (what we listen on) from browser-facing URL
+  // (what we tell users to visit). Upstream PR #159.
   const bindAddr = host === 'localhost' ? '127.0.0.1' : host;
-  const displayHost = host === '0.0.0.0' ? 'localhost' : host;
-  const displayUrl = `http://${displayHost}:${port}`;
+  const isWildcard = host === '0.0.0.0' || host === '::' || host === '[::]';
+  const displayHost = isWildcard ? 'localhost' : (host === '127.0.0.1' ? 'localhost' : host);
+  const browserUrl = `http://${displayHost}:${port}`;
 
   server.listen(port, bindAddr, () => {
     console.log('');
     console.log('  \x1b[36m\x1b[1mcodedash\x1b[0m — Claude & Codex Sessions Dashboard');
-    console.log(`  \x1b[2m${displayUrl}\x1b[0m`);
-    if (host === '0.0.0.0') {
+    console.log(`  \x1b[2mbind ${bindAddr}:${port}\x1b[0m`);
+    console.log(`  \x1b[2m${browserUrl}\x1b[0m`);
+    if (isWildcard) {
       console.log('  \x1b[2mListening on all interfaces\x1b[0m');
     }
     console.log('  \x1b[2mPress Ctrl+C to stop\x1b[0m');
     console.log('');
 
     if (openBrowser) {
-      const browserUrl = `http://localhost:${port}`;
+      // execFile (not exec) to avoid shell injection from host values
       if (process.platform === 'darwin') {
-        exec(`open ${browserUrl}`);
+        execFile('open', [browserUrl]);
       } else if (process.platform === 'linux') {
-        exec(`xdg-open ${browserUrl}`);
+        execFile('xdg-open', [browserUrl]);
       }
     }
 

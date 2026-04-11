@@ -122,6 +122,44 @@ function showToast(msg) {
   setTimeout(() => el.classList.remove('show'), 2500);
 }
 
+// Clipboard helper with fallback for non-secure origins (HTTP, file://).
+// From upstream PR #155 (Alexander Kolotov).
+function fallbackCopyText(text) {
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-9999px';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    var ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+function copyText(text, successMsg) {
+  var done = function() {
+    showToast(successMsg || ('Copied: ' + text));
+    return true;
+  };
+  var fail = function() {
+    if (fallbackCopyText(text)) return done();
+    prompt('Copy this command:', text);
+    showToast(window.isSecureContext ? 'Clipboard copy failed' : 'Clipboard unavailable on non-secure origin');
+    return false;
+  };
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    return navigator.clipboard.writeText(text).then(done).catch(fail);
+  }
+  return Promise.resolve(fail());
+}
+
 function formatBytes(bytes) {
   if (!bytes || bytes < 1024) return (bytes || 0) + ' B';
   if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';

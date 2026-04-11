@@ -696,7 +696,8 @@ function parseClaudeSessionFile(sessionFile, opts) {
   let customTitle = '';
   let firstTs = stat.mtimeMs;
   let lastTs = stat.mtimeMs;
-  let userMsgCount = 0;
+  let userMsgCount = 0;    // real human prompts only
+  let totalUserMsgs = 0;   // all type=user entries (incl tool_result, sub-agents)
   let entrypointFound = false;
   let worktreeOriginalCwd = '';
   const mcpSet = new Set();
@@ -722,6 +723,7 @@ function parseClaudeSessionFile(sessionFile, opts) {
     try {
       const entry = JSON.parse(line);
       if (entry.type === 'user' || entry.type === 'assistant') msgCount++;
+      if (entry.type === 'user') totalUserMsgs++;
       if (entry.type === 'user' && isRealUserPrompt(entry)) userMsgCount++;
       if (entry.timestamp) {
         if (entry.timestamp < firstTs) firstTs = entry.timestamp;
@@ -772,6 +774,7 @@ function parseClaudeSessionFile(sessionFile, opts) {
     tool,
     msgCount,
     userMsgCount,
+    totalUserMsgs,
     firstMsg,
     customTitle,
     firstTs,
@@ -918,6 +921,9 @@ function mergeClaudeSessionDetail(session, summary, sessionFile) {
   session.file_size = summary.fileSize;
   session.detail_messages = summary.msgCount;
   session.user_messages = summary.userMsgCount || 0;
+  // total_interactions = all user-type entries including tool_result/sub-agent
+  // (imported from upstream ca70fd2 — dual metrics "GOD OF AUTOMATION")
+  session.total_interactions = summary.totalUserMsgs || summary.userMsgCount || 0;
   session._session_file = sessionFile;
   session.mcp_servers = summary.mcpServers || [];
   session.skills = summary.skills || [];
